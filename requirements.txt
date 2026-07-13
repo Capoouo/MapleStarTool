@@ -1,0 +1,4 @@
+# Boss 攻略工具箱 — 相依套件
+# 安裝： pip install -r requirements.txt
+# 開發與測試環境為 PySide6 6.10.1；6.6 以上皆可運作。
+PySide6>=6.6

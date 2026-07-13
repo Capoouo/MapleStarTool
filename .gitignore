@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 虛擬環境
+.venv/
+venv/
+
+# PyInstaller 產物
+build/
+dist/
+*.spec
