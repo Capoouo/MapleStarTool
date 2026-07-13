@@ -10,10 +10,9 @@
 
 ## 1. 下載與啟動
 
-> 🚧 _此區塊待 GitHub Release 發布後補上。_
->
-> 屆時會提供打包好的 `.exe` 下載連結與啟動說明，一般使用者**不需安裝 Python** 即可直接執行。
->
+此至此處下載 MapleStarTool.exe
+https://github.com/hozircon/MapleStarTool/releases/tag/V1.0.0.0
+![MapleStarTool.exe](docs/images/release_download.png)
 > 若你想從原始碼執行，請參考 [3. 開發相關](#3-開發相關)。
 
 ---
@@ -21,6 +20,8 @@
 ## 2. 功能介紹
 
 程式分為兩大模式，透過視窗左上角的 **`練功` / `打Boss`** 切換；另有可獨立彈出的 **Boss 血量刻度表**浮窗。
+
+參考影片：https://youtu.be/Pw2LkldKjog
 
 ### 2-1. 練功經驗計算
 
@@ -47,6 +48,8 @@
 
 ![打Boss](docs/images/overview-boss.png)
 
+參考影片：https://youtu.be/NQqKfy6g4HA
+
 - 上方 **下拉選單** 選擇目前要打的 Boss，切換該 Boss 的技能卡。
 - 每張 **技能卡**：
   - **單擊** → 開始倒數冷卻。
@@ -70,6 +73,7 @@
 ### 2-3. Boss 血量刻度表
 
 ![刻度表設定列](docs/images/boss-ruler-settings.png)
+參考影片：https://youtu.be/BcRSL5RywsI
 
 在「打 Boss」模式點 **📏 血量刻度**，會彈出一個獨立、永遠置頂的**刻度表浮窗**（與主視窗並存，不需切換）。相關設定顯示在主視窗的設定列（不會壓縮到卡片區）：
 
