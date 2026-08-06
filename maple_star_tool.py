@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-楓星小工具 — Maplestory World 楓星 輔助小工具（PySide6）  v1.0.0.0
+楓星小工具 — Maplestory World 楓星 輔助小工具（PySide6）  v1.1.0.0
 
 主視窗工具：
   A. 技能冷卻計時器
@@ -24,6 +24,8 @@
 """
 
 import sys
+import os
+import time
 from PySide6.QtCore import Qt, QTimer, QRectF, QRect, QSize, QPoint, QPointF, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QPainterPath, QLinearGradient
 from PySide6.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButton,
@@ -94,6 +96,32 @@ def fmt_minutes(m):
     if m < 60:
         return f"{m} 分"
     return f"{m // 60} 時 {m % 60} 分"
+
+
+def _load_exp_table():
+    """讀取 CSV 第3欄（楓星調整版）的升級經驗，僅取整數，1-30無數據則略過。"""
+    d = {}
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "經驗需求表(推測).csv")
+    try:
+        with open(csv_path, encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split(",")
+                if len(parts) < 3:
+                    continue
+                try:
+                    lv = int(parts[0])
+                    val = parts[2].strip()
+                    if val in ("-", ""):
+                        continue
+                    d[lv] = int(float(val))
+                except (ValueError, IndexError):
+                    continue
+    except FileNotFoundError:
+        pass
+    return d
+
+
+EXP_TABLE = _load_exp_table()
 
 
 # =========================================================================
@@ -199,6 +227,7 @@ class RingCard(QFrame):
         super().__init__()
         self.default_cd = float(cd); self.total = float(cd)
         self.remaining = 0.0; self.active = False; self.loop = False
+        self._deadline = 0.0
         self._hover = False; self.block_alpha = 240; self.zoom = 1.0
 
         lay = QVBoxLayout(self); lay.setContentsMargins(8, 8, 8, 8); lay.setSpacing(4)
@@ -252,29 +281,38 @@ class RingCard(QFrame):
         secs = self._resolve_secs()
         if secs <= 0:
             return
-        self.total = secs; self.remaining = secs; self.active = True; self.update()
+        self.total = secs; self.remaining = secs
+        self._deadline = time.perf_counter() + secs
+        self.active = True; self.update()
 
     def restart(self):
         """快速雙擊：不論當前狀態，直接歸位重新倒數"""
         secs = self._resolve_secs()
         if secs <= 0:
             return
-        self.total = secs; self.remaining = secs; self.active = True; self.update()
+        self.total = secs; self.remaining = secs
+        self._deadline = time.perf_counter() + secs
+        self.active = True; self.update()
 
     def reset(self):
-        self.active = False; self.remaining = 0.0; self.update()
+        self.active = False; self.remaining = 0.0; self._deadline = 0.0; self.update()
 
     def tick(self, dt):
         if not self.active:
             return
-        self.remaining -= dt
+        self.remaining = max(0.0, self._deadline - time.perf_counter())
         if self.remaining <= 0:
             if self.loop:
                 secs = self._resolve_secs()
-                self.total = secs; self.remaining = secs if secs > 0 else 0.0
-                self.active = secs > 0
+                self.total = secs
+                if secs > 0:
+                    self._deadline = time.perf_counter() + secs
+                    self.remaining = secs
+                    self.active = True
+                else:
+                    self.remaining = 0.0; self.active = False; self._deadline = 0.0
             else:
-                self.remaining = 0.0; self.active = False
+                self.remaining = 0.0; self.active = False; self._deadline = 0.0
         self.update()
 
     def enterEvent(self, e): self._hover = True;  self.update()
@@ -320,7 +358,7 @@ class RingCard(QFrame):
             p.setPen(QPen(QBrush(grad), thick, Qt.SolidLine, Qt.RoundCap))
             p.drawArc(inner, 90 * 16, int(360 * frac * 16))
             main = C_COOL_B if frac < 0.4 else C_COOL_A
-            txt, big = f"{self.remaining:.1f}", 0.30
+            txt, big = f"{int(self.remaining)}", 0.30
         else:
             p.setPen(QPen(C_READY, thick, Qt.SolidLine, Qt.RoundCap))
             p.drawArc(inner, 90 * 16, 360 * 16)
@@ -586,7 +624,7 @@ class RulerWindow(QWidget):
 class CalcPage(QWidget):
     def __init__(self):
         super().__init__()
-        self.total = 0.0; self.remaining = 0.0; self.running = False
+        self.total = 0.0; self.remaining = 0.0; self.running = False; self._deadline = 0.0
         v = QVBoxLayout(self); v.setContentsMargins(6, 2, 6, 4); v.setSpacing(6)
 
         def field(label, ph):
@@ -598,6 +636,14 @@ class CalcPage(QWidget):
 
         r1, self.start_in = field("起始經驗", "例如 1,234,567"); v.addLayout(r1)
         r2, self.end_in = field("結束經驗", "倒數結束後填入"); v.addLayout(r2)
+
+        lv_row = QHBoxLayout()
+        lv_lb = QLabel("等級"); lv_lb.setObjectName("formLbl"); lv_lb.setFixedWidth(58)
+        self.lv_in = QLineEdit(); self.lv_in.setObjectName("expInput")
+        self.lv_in.setPlaceholderText("31–200（自動帶入升級經驗）")
+        lv_row.addWidget(lv_lb); lv_row.addWidget(self.lv_in, 1)
+        v.addLayout(lv_row)
+
         r3, self.req_in = field("升級經驗", "升級所需總經驗（選填）"); v.addLayout(r3)
 
         dur = QHBoxLayout()
@@ -632,8 +678,18 @@ class CalcPage(QWidget):
 
         for le in (self.start_in, self.end_in, self.req_in):
             le.textChanged.connect(self.recalc)
+        self.lv_in.textChanged.connect(self._on_level_changed)
         self.timer = QTimer(self); self.timer.timeout.connect(self._tick); self.timer.start(200)
         self.recalc()
+
+    def _on_level_changed(self, text):
+        t = text.strip()
+        try:
+            lv = int(t)
+        except ValueError:
+            return
+        if lv in EXP_TABLE:
+            self.req_in.setText(f"{EXP_TABLE[lv]:,}")
 
     def _result(self, grid, row, label):
         lb = QLabel(label); lb.setObjectName("resLbl")
@@ -651,21 +707,26 @@ class CalcPage(QWidget):
 
     def _toggle(self):
         if self.running:
+            # 暫停：記錄當下剩餘秒數
+            self.remaining = max(0.0, self._deadline - time.perf_counter())
             self.running = False; self.start_btn.setText("繼續")
         else:
             if self.remaining <= 0:
                 self.total = self._dur(); self.remaining = self.total
-            self.running = self.remaining > 0
+            if self.remaining > 0:
+                self._deadline = time.perf_counter() + self.remaining
+                self.running = True
             self.start_btn.setText("暫停" if self.running else "開始")
         self._refresh()
 
     def _reset(self):
         self.running = False; self.total = self._dur(); self.remaining = self.total
+        self._deadline = 0.0
         self.start_btn.setText("開始"); self._refresh(); self.recalc()
 
     def _tick(self):
         if self.running:
-            self.remaining -= 0.2
+            self.remaining = max(0.0, self._deadline - time.perf_counter())
             if self.remaining <= 0:
                 self.remaining = 0.0; self.running = False; self.start_btn.setText("開始")
             self._refresh(); self.recalc()
